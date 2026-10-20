@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Queue Management System</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; background: #f1f5f9; color: #172033; }
+header { background: #173b75; color: white; padding: 25px 6%; }
+header h1 { font-size: 26px; margin-bottom: 8px; }
+header p { color: #dbeafe; }
+main { max-width: 1100px; margin: 30px auto; padding: 0 18px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 22px; }
+.card, .panel { background: white; padding: 22px; border-radius: 14px; box-shadow: 0 4px 15px #0f172a0b; }
+.stats h3 { color: #64748b; font-size: 14px; }
+.stats p { font-size: 30px; font-weight: bold; margin-top: 10px; }
+.layout { display: grid; grid-template-columns: 1fr 1.4fr; gap: 20px; }
+h2 { font-size: 20px; margin-bottom: 18px; }
+label { display: block; margin: 14px 0 7px; font-weight: bold; font-size: 14px; }
+input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+button { border: none; border-radius: 8px; padding: 11px 14px; cursor: pointer; font-weight: bold; margin-top: 12px; }
+button:focus, input:focus { outline: 2px solid #60a5fa; outline-offset: 2px; }
+.primary { background: #2563eb; color: white; width: 100%; }
+.green { background: #15803d; color: white; }
+.red { background: #fee2e2; color: #991b1b; }
+.current { background: #eff6ff; padding: 18px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #2563eb; }
+.current small { color: #475569; }
+.current h3 { font-size: 22px; margin: 8px 0; }
+.queue-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #e2e8f0; }
+.queue-item:last-child { border-bottom: none; }
+.queue-item p { margin-top: 5px; color: #64748b; font-size: 13px; }
+.number { display: inline-block; background: #dbeafe; color: #1d4ed8; padding: 5px 9px; border-radius: 6px; font-weight: bold; margin-right: 8px; }
+.empty { color: #64748b; padding: 15px 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+footer { text-align: center; color: #64748b; padding: 25px; font-size: 13px; }
+@media (max-width: 700px) {
+  .stats { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; }
+  header h1 { font-size: 22px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Student Queue Management System</h1>
+  <p>Register, organize and serve students efficiently.</p>
+</header>
+<main>
+  <section class="stats">
+    <div class="card"><h3>Students Waiting</h3><p id="waitingCount">0</p></div>
+    <div class="card"><h3>Currently Serving</h3><p id="servingNumber">---</p></div>
+    <div class="card"><h3>Students Served</h3><p id="servedCount">0</p></div>
+  </section>
+  <section class="layout">
+    <div class="panel">
+      <h2>Register a Student</h2>
+      <form id="studentForm">
+        <label for="studentName">Student Name</label>
+        <input id="studentName" type="text" placeholder="Enter full name" required maxlength="80">
+        <label for="studentId">Student ID</label>
+        <input id="studentId" type="text" placeholder="Enter student ID" required maxlength="40">
+        <button class="primary" type="submit">+ Join Queue</button>
+      </form>
+    </div>
+    <div class="panel">
+      <h2>Queue Control</h2>
+      <div class="current">
+        <small>CURRENTLY SERVING</small>
+        <h3 id="currentName">No student called</h3>
+        <p id="currentId">Call the next student to begin.</p>
+      </div>
+      <div class="actions">
+        <button class="green" id="callNext">Call Next Student</button>
+        <button class="red" id="markServed">Mark as Served</button>
+      </div>
+      <p id="message" role="status" aria-live="polite" style="margin-top:14px"></p>
+    </div>
+  </section>
+  <section class="panel" style="margin-top:22px">
+    <h2>Waiting Queue</h2>
+    <div id="queueList"><p class="empty">No students are waiting.</p></div>
+  </section>
+</main>
+<footer>Student Queue Management System | FIFO Data Structure</footer>
+<script>
+const form = document.getElementById("studentForm");
+const nameInput = document.getElementById("studentName");
+const idInput = document.getElementById("studentId");
+const queueList = document.getElementById("queueList");
+const message = document.getElementById("message");
+
+let queue = [];
+let currentStudent = null;
+let nextNumber = 1;
+let servedCount = 0;
+
+try {
+  queue = JSON.parse(localStorage.getItem("studentQueue") || "[]");
+  currentStudent = JSON.parse(localStorage.getItem("currentStudent") || "null");
+  nextNumber = Number(localStorage.getItem("nextNumber") || "1");
+  servedCount = Number(localStorage.getItem("servedCount") || "0");
+  if (!Array.isArray(queue)) queue = [];
+  if (!Number.isFinite(nextNumber) || nextNumber < 1) nextNumber = 1;
+  if (!Number.isFinite(servedCount) || servedCount < 0) servedCount = 0;
+} catch (error) {
+  queue = [];
+  currentStudent = null;
+  nextNumber = 1;
+  servedCount = 0;
+}
+
+function saveData() {
+  localStorage.setItem("studentQueue", JSON.stringify(queue));
+  localStorage.setItem("currentStudent", JSON.stringify(currentStudent));
+  localStorage.setItem("nextNumber", String(nextNumber));
+  localStorage.setItem("servedCount", String(servedCount));
+}
+
+function render() {
+  document.getElementById("waitingCount").textContent = queue.length;
+  document.getElementById("servingNumber").textContent = currentStudent ? currentStudent.number : "---";
+  document.getElementById("servedCount").textContent = servedCount;
+  document.getElementById("currentName").textContent = currentStudent ? currentStudent.name : "No student called";
+  document.getElementById("currentId").textContent = currentStudent
+    ? "Queue " + currentStudent.number + " | ID: " + currentStudent.id
+    : "Call the next student to begin.";
+
+  queueList.replaceChildren();
+  if (queue.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No students are waiting.";
+    queueList.appendChild(empty);
+  }
+
+  queue.forEach(student => {
+    const item = document.createElement("div");
+    item.className = "queue-item";
+    const details = document.createElement("div");
+    const title = document.createElement("strong");
+    const subtitle = document.createElement("p");
+    const number = document.createElement("span");
+    number.className = "number";
+    number.textContent = student.number;
+    title.textContent = student.name;
+    subtitle.textContent = "Student ID: " + student.id;
+    details.append(number, title, subtitle);
+    item.appendChild(details);
+    queueList.appendChild(item);
+  });
+  saveData();
+}
+
+form.addEventListener("submit", function(event) {
+  event.preventDefault();
+  const name = nameInput.value.trim();
+  const id = idInput.value.trim();
+  if (!name || !id) {
+    message.textContent = "Enter the name and student ID.";
+    return;
+  }
+  const duplicate = queue.some(student => student.id.toLowerCase() === id.toLowerCase()) ||
+    (currentStudent && currentStudent.id.toLowerCase() === id.toLowerCase());
+  if (duplicate) {
+    message.textContent = "This student is already waiting or being served.";
+    return;
+  }
+  queue.push({
+    number: "Q" + String(nextNumber).padStart(3, "0"),
+    name: name,
+    id: id
+  });
+  nextNumber++;
+  form.reset();
+  message.textContent = "Student added to the queue.";
+  render();
+  nameInput.focus();
+});
+
+document.getElementById("callNext").addEventListener("click", function() {
+  if (currentStudent) {
+    message.textContent = "Mark the current student as served first.";
+    return;
+  }
+  if (queue.length === 0) {
+    message.textContent = "There are no students waiting.";
+    return;
+  }
+  currentStudent = queue.shift();
+  message.textContent = currentStudent.name + " has been called.";
+  render();
+});
+
+document.getElementById("markServed").addEventListener("click", function() {
+  if (!currentStudent) {
+    message.textContent = "Call a student first.";
+    return;
+  }
+  servedCount++;
+  message.textContent = currentStudent.name + " has been served.";
+  currentStudent = null;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
